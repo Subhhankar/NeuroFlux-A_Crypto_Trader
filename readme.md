@@ -66,10 +66,36 @@ neuroflux/
 - Outputs training curves, confusion matrix, classification report, and ROC-AUC plot.
 - Saves the trained model as `chart_classification_model.h5`.
 
-### 3. `transformer.ipynb` — XGBoost TP/SL Predictor
-- Trains an XGBoost regressor to predict **Take-Profit (high)** and **Stop-Loss (low)** price targets.
-- Uses technical features from historical windows (Hurst exponent, OBV, ATR, trend duration, etc.).
-- Saved as `optimized_xgb_tp_sl_predictor.pkl`.
+### 3. `transformer.ipynb` — Transformer Log-Return Forecaster
+A standalone **PyTorch Transformer** model built to forecast future `log_return` values from multivariate time-series data. This is a foundational component planned for deeper integration into the Neuroflux pipeline as a predictive signal layer.
+
+**Architecture — `BTC_Transformer`:**
+- **Input encoding:** `SineActivation` layer maps 21 raw features → 60-dimensional periodic embeddings (captures cyclical market patterns)
+- **Encoder:** 4× `TransformerEncoderLayer` blocks (d_model=60, with LayerNorm)
+- **Decoder:** 4× `TransformerDecoderLayer` blocks (d_model=60, with LayerNorm)
+- **Output projection:** Linear layer (60 → 21 features), trained to reconstruct the `log_return` column
+- **Total parameters:** ~551,793 trainable params (~2.1 MB)
+
+**Input Features (21 total):**
+| Category | Features |
+|---|---|
+| Price | `open`, `high`, `low`, `close` |
+| Returns | `log_return` |
+| Volatility | `parkinsons_vol_10/20/50`, `garch_volatility`, `arch_volatility`, `True_Range` |
+| Volume | `volume`, `volume_zscore`, `money_flow_volume`, `money_flow_multiplier` |
+| Momentum | `ATR`, `HL_diff`, `low_prev_close`, `high_prev_close` |
+| Regime | `hurst_50`, `trend_up` |
+
+**Training details:**
+- Dataset: 2,208 rows of 15-minute BTC/USDT data (May–Aug 2025)
+- Train / Validation / Test split with configurable percentages
+- Optimizer: SGD with `StepLR` scheduler
+- Loss: MSE on normalised log-return sequences
+- Supports both `StandardScaler` and `MinMaxScaler` normalisation
+- GPU-accelerated training via PyTorch CUDA
+
+**Role in Neuroflux:**
+> This model is currently **not yet integrated** into `main.py` or `backtest.py`. The intended future use is to feed its log-return forecasts as an additional signal — alongside the CNN trend classifier — to improve entry timing and directional confidence before a trade is placed.
 
 ### 4. `main.py` — Live Trading Bot
 - Connects to the **Binance API** and polls BTC/USDT 15-minute klines every 30 seconds.
